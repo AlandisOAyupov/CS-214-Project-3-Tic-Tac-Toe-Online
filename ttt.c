@@ -10,12 +10,13 @@
 #include <signal.h>
 #include <errno.h>
 #define BUFLEN 256
-int connectSock(char* host, char* service)
+volatile int active = 1;
+int connectSock(char *host, char *service)
 {
  struct addrinfo hints, *info_list, *info;
  int sock, error;
  memset(&hints, 0, sizeof(hints));
- hints.ai_family = AF_UNSPEC; 
+ hints.ai_family = AF_UNSPEC;
  hints.ai_socktype = SOCK_STREAM;
  error = getaddrinfo(host, service, &hints, &info_list);
  if (error)
@@ -58,6 +59,7 @@ int main(int argc, char **argv)
   exit(EXIT_FAILURE);
  while ((bytes = read(STDIN_FILENO, buf, BUFLEN)) > 0)
  {
+  buf[bytes] = '\0';
   write(sock, buf, bytes);
  }
  close(sock);
