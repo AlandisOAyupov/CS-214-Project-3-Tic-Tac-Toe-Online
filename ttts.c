@@ -21,8 +21,13 @@ typedef enum condition
   draw,
   unfinished
 } condition;
-char *board, **usernames;
-int ucount;
+typedef struct game
+{
+  char **usernames, **messages, *sides, *board;
+  int *sock, ucount;
+} game;
+char *board, *sides, **usernames, **messages;
+int ucount, *sock;
 int openListen(char *service, int queueSize)
 {
   struct addrinfo hint, *info_list, *info;
@@ -64,102 +69,36 @@ int openListen(char *service, int queueSize)
   }
   return sock;
 }
-int makeMove(int row, int col, char player)
+char *combine(char *first, char *second)
 {
-  row--;
-  col--;
-  if((row > 2) || (row < 0) || (col < 0) || (col > 2))
-    return -1;
-  int index = row * 3 + col;
-  if(board[index] != '.')
-    return -2;
-  board[index] = player;
-  condition a1 = checkStatus();
-  if(a1 == unfinished)
-    return 1;
-  else
-    return 2;
-}
-char *interpretCommand(char *command, char *text, char player)
-{
-  if (strcmp("PLAY", command) == 0)
-  {
-    usernames[ucount] = text;
-    ucount++;
-    return "WAIT|0|";
-  }
-  if (strcmp("MOVE", command) == 0)
-  {
-    if (strlen(text) < 3)
-      return NULL;
-    else
-    {
-      int row = text[0] - '0';
-      int col = text[2] - '0';
-      int success = makeMove(row, col, player);
-      if(success == 1)
-      {
-        return 
-      }
-      else
-      {
-
-      }
-    }
-  }
-  if (strcmp("RSGN", command) == 0)
-  if (strcmp("DRAW", command) == 0)
-}
-char *formatMessage(char *string, int length)
-{
-  short format = 1;
   int i = 0;
-  char *command = (char *)malloc(sizeof(char) * 5);
-  for (i = 0; string[i] != '|'; i++)
-  {
-    if (i >= 4 || i >= length)
-    {
-      format = 0;
-      break;
-    }
-    command[i] = string[i];
-  }
-  command[4] = '\0';
-  char *number = (char *)malloc(sizeof(char) * 4);
-  int count = i + 1;
-  for (i = count; string[i] != '|'; i++)
-  {
-    if (((i - count) >= 3) || (i >= length) || string[i] < 48 || string[i] > 57)
-    {
-      format = 0;
-      break;
-    }
-    number[i - count] = string[i];
-  }
-  number[3] = '\0';
-  int num = atoi(number);
-  char *text = (char *)malloc(sizeof(char) * num);
-  count = i + 1;
-  for (i = count; string[i] != '|'; i++)
-  {
-    if (((i - count) >= num) || i >= length)
-    {
-      format = 0;
-      break;
-    }
-    text[i - count] = string[i];
-  }
+  char *combination = (char *)malloc(sizeof(char) * (strlen(first) + strlen(second) + 1));
+  int length = strlen(first) + strlen(second) + 1;
+  for (i = 0; i < strlen(first); i++)
+		combination[i] = first[i];
+ int count = 0;
+ while (count < strlen(second))
+ {
+		combination[i] = second[count];
+		i++;
+		count++;
+ }
+ combination[length - 1] = '\0';
+ return combination;
 }
-void playGame(int sock, int sock2, struct sockaddr *rem, socklen_t rem_len)
+void chooseSides()
 {
-  char buf[BUFSIZE];
-  int bytes;
-  while (active && (bytes = read(sock, buf, BUFSIZE)) > 0)
-  {
-    write(STDIN_FILENO, buf, bytes);
-  }
-  close(sock);
-  close(sock2);
+ int r = rand() % 2;
+ if(r == 1)
+ {
+  sides[0] = 'X';
+  sides[1] = 'O';
+ }
+ else
+ {
+  sides[0] = 'O';
+  sides[1] = 'X';
+ }
 }
 condition checkWin2(char c)
 {
@@ -194,6 +133,116 @@ condition checkStatus()
     return draw;
   return unfinished;
 }
+int makeMove(int row, int col, char player)
+{
+  row--;
+  col--;
+  if((row > 2) || (row < 0) || (col < 0) || (col > 2))
+    return -1;
+  int index = row * 3 + col;
+  if(board[index] != '.')
+    return -2;
+  board[index] = player;
+  condition a1 = checkStatus();
+  if(a1 == unfinished)
+    return 1;
+  else
+    return 2;
+}
+char *interpretCommand(char *command, char *text, char player)
+{
+  if (strcmp("PLAY", command) == 0)
+  {
+    usernames[ucount] = text;
+    ucount++;
+    return "WAIT|0|";
+  }
+  if (strcmp("MOVE", command) == 0)
+  {
+    if (strlen(text) < 3)
+      return NULL;
+    else
+    {
+      int row = text[0] - '0';
+      int col = text[2] - '0';
+      int success = makeMove(row, col, player);
+      if(success == 1)
+        return 
+      else
+      {
+
+      }
+    }
+  }
+  if (strcmp("RSGN", command) == 0)
+  {
+    return "OVER|21|L|You have resigned|";
+  }
+  if (strcmp("DRAW", command) == 0)
+  {
+    if(strcmp("S", text) == 0)
+    {
+      return "DRAW|2|S|";
+    }
+    if(strcmp("A", text) == 0)
+      return "OVER|18|Draw agreed upon|";
+    if(strcmp("R", text) == 0)
+      return "DRAW|2|R|";
+  }
+}
+char *formatMessage(char *string, int length, char player)
+{
+  short format = 1;
+  int i = 0;
+  char *command = (char *)malloc(sizeof(char) * 5);
+  for (i = 0; string[i] != '|'; i++)
+  {
+    if (i >= 4 || i >= length)
+    {
+      format = 0;
+      break;
+    }
+    command[i] = string[i];
+  }
+  command[4] = '\0';
+  char *number = (char *)malloc(sizeof(char) * 4);
+  int count = i + 1;
+  for (i = count; string[i] != '|'; i++)
+  {
+    if (((i - count) >= 3) || (i >= length) || string[i] < 48 || string[i] > 57)
+    {
+      format = 0;
+      break;
+    }
+    number[i - count] = string[i];
+  }
+  number[3] = '\0';
+  int num = atoi(number);
+  free(number);
+  char *text = (char *)malloc(sizeof(char) * num);
+  count = i + 1;
+  for (i = count; string[i] != '|'; i++)
+  {
+    if (((i - count) >= num) || i >= length)
+    {
+      format = 0;
+      break;
+    }
+    text[i - count] = string[i];
+  }
+  return interpretCommand(command, text, player);
+}
+void playGame(int sock, int sock2, struct sockaddr *rem, socklen_t rem_len)
+{
+  char buf[BUFSIZE];
+  int bytes;
+  while (active && (bytes = read(sock, buf, BUFSIZE)) > 0)
+  {
+    write(STDIN_FILENO, buf, bytes);
+  }
+  close(sock);
+  close(sock2);
+}
 char *setBoard()
 {
   board = (char *)malloc(sizeof(char) * 10);
@@ -208,6 +257,8 @@ int main(int argc, char **argv)
   struct sockaddr_storage remote_host;
   socklen_t remote_host_len;
   usernames = (char **)malloc(sizeof(char *) * 2);
+  messages = (char **)malloc(sizeof(char *) * 2);
+  sock = (int *)malloc(sizeof(int) * 2);
   ucount = 0;
   char *service = argc == 2 ? argv[1] : "15000";
   int listener = openListen(service, QUEUE_SIZE);
@@ -217,14 +268,14 @@ int main(int argc, char **argv)
   while (active)
   {
     remote_host_len = sizeof(remote_host);
-    int sock = accept(listener, (struct sockaddr *)&remote_host, &remote_host_len);
-    int sock2 = accept(listener, (struct sockaddr *)&remote_host, &remote_host_len);
-    if (sock < 0 || sock2 < 0)
+    sock[0] = accept(listener, (struct sockaddr *)&remote_host, &remote_host_len);
+    sock[1] = accept(listener, (struct sockaddr *)&remote_host, &remote_host_len);
+    if (sock[0] < 0 || sock[1] < 0)
     {
       perror("accept");
       continue;
     }
-    playGame(sock, sock2, (struct sockaddr *)&remote_host, remote_host_len);
+    playGame(sock[0], sock[1], (struct sockaddr *)&remote_host, remote_host_len);
   }
   puts("Shutting down");
   close(listener);
