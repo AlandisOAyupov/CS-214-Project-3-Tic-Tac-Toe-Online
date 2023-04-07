@@ -158,82 +158,138 @@ int getPlayerFromToken(char player, int c)
     if(sides[i] != player && c == 1)
       return i;
   }
+  return -1;
 }
 char* intToString(int p)
 {
-  return NULL;
+  int copy = p;
+  int numDigits = 0;
+  while(copy > 0)
+  {
+    copy = copy/10;
+    numDigits++;
+  }
+  char *number = (char *)malloc(sizeof(char) * (numDigits + 2));
+  int length = numDigits + 2;
+  for (int i = numDigits - 1; i >= 0; i--)
+  {
+    copy = p % 10;
+    number[i] = copy + '0';
+    p = p / 10;
+  }
+  number[length - 2] = '|';
+  number[length - 1] = '\0';
+  return number;
 }
-char* xHasResigned(int w)
+char* coordsToString(int row, int col, char player)
 {
-  char *one = combine(usernames[w], " has resigned|");
-  char *two = combine("W|", one);
+  char *letter;
+  if(player == 'X')
+    letter = "X|";
+  else
+    letter = "O|";
+  char srow = row + '0';
+  char scol = col + '0';
+  char *coords = (char *)malloc(sizeof(char) * 5);
+  coords[0] = srow;
+  coords[1] = ',';
+  coords[2] = scol;
+  coords[3] = '|';
+  coords[4] = '\0';
+  char *string = combine(letter, coords);
+  free(coords);
+  return string;
+}
+char *moved(int row, int col, int player)
+{
+  char *one = "MOVD|16|";
+  char *two = coordsToString(row, col, player);
+  char *three = combine(one, two);
+  free(two);
+  char *four = combine(three, board);
+  free(three);
+  char *five = combine(four, "|");
+  free(four);
+  return five;
+}
+char* xHasY(int w, char* A, char* B, char* C)
+{
+  char *one = combine(usernames[w], C);
+  char *two = combine(B, one);
   free(one);
   int l = strlen(two);
   char *three = intToString(l);
   char *four = combine(three, two);
   free(two);
   free(three);
-  char *five = combine("OVER|", four);
+  char *five = combine(A, four);
   free(four);
   return five;
 }
-void *interpretCommand(char *command, char *text, char player)
+void interpretCommand(char *command, char *text, char player)
 {
-  int w;
+  int c, o;
+  short com = 1;
+  c = getPlayerFromToken(player, 0);
+  o = getPlayerFromToken(player, 1);
   if (strcmp("PLAY", command) == 0)
   {
     usernames[ucount] = text;
     ucount++;
-    w = getPlayerFromToken(player, 0);
-    messages[w] = "WAIT|0|";
+    messages[c] = "WAIT|0|";
+    com = 0;
   }
   if (strcmp("MOVE", command) == 0)
   {
     if (strlen(text) < 3)
-      return NULL;
+      messages[c] = "INVL|20|Invalid coordinates|";
     else
     {
       int row = text[0] - '0';
       int col = text[2] - '0';
       int success = makeMove(row, col, player);
+      if(success == -2)
+        messages[c] = "INVL|23|Space already occupied|";
+      if(success == -1)
+        messages[c] = "INVL|20|Invalid coordinates|";
       if(success == 1)
       {
-
+        messages[0] = moved(row, col, c);
+        messages[1] = moved(row, col, c);
       }
-      else
+      if(success == 2)
       {
-
+        messages[c] = "OVER|22|W|You have 3 in a row|";
+        messages[o] = xHasY(c, "OVER|", "L|", " has 3 in a row|");
       }
     }
+    com = 0;
   }
   if (strcmp("RSGN", command) == 0)
   {
-    w = getPlayerFromToken(player, 0);
-    messages[w] = "OVER|21|L|You have resigned|";
-    w = getPlayerFromToken(player, 1);
-    messages[w] = xHasResigned(w);
+    messages[c] = "OVER|21|L|You have resigned|";
+    messages[o] = xHasY(c, "OVER|", "W|", " has resigned|");
+    com = 0;
   }
   if (strcmp("DRAW", command) == 0)
   {
     if(strcmp("S", text) == 0)
-    {
-      w = getPlayerFromToken(player, 1);
-      messages[w] = "DRAW|2|S|";
-    }
+      messages[o] = "DRAW|2|S|";
     if(strcmp("A", text) == 0)
     {
       messages[0] = "OVER|18|Draw agreed upon|";
       messages[1] = "OVER|18|Draw agreed upon|";
     }
     if(strcmp("R", text) == 0)
-    {
-      w = getPlayerFromToken(player, 1);
-      messages[w] = "DRAW|2|R|";
-    }
+      messages[o] = "DRAW|2|R|";
+    com = 0;
   }
+  if(com)
+    messages[c] = "INVL|17|Invalid command|";
 }
-char *formatMessage(char *string, int length, char player)
+void formatMessage(char *string, int length, char player)
 {
+  int c = getPlayerFromToken(player, 0);
   short format = 1;
   int i = 0;
   char *command = (char *)malloc(sizeof(char) * 5);
@@ -272,7 +328,11 @@ char *formatMessage(char *string, int length, char player)
     }
     text[i - count] = string[i];
   }
-  return interpretCommand(command, text, player);
+  text[num - 1] = '\0';
+  if(!format)
+    messages[c] = "INVL|16|Invalid format|";
+  else
+    interpretCommand(command, text, player);
 }
 void playGame(int sock, int sock2, struct sockaddr *rem, socklen_t rem_len)
 {
@@ -284,12 +344,12 @@ void playGame(int sock, int sock2, struct sockaddr *rem, socklen_t rem_len)
   chooseSides();
   while (active && (bytes = read(sock, buf, BUFSIZE)) > 0)
   {
-    write(STDIN_FILENO, buf, bytes);
+    formatMessage(buf, bytes, 'X');
   }
   close(sock);
   close(sock2);
 }
-char *setBoard()
+void setBoard()
 {
   board = (char *)malloc(sizeof(char) * 10);
   for (int i = 0; i < 9; i++)
