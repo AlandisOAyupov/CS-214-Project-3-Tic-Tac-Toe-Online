@@ -149,13 +149,43 @@ int makeMove(int row, int col, char player)
   else
     return 2;
 }
-char *interpretCommand(char *command, char *text, char player)
+int getPlayerFromToken(char player, int c)
 {
+  for (int i = 0; i < 2; i++)
+  {
+    if(sides[i] == player && c == 0)
+      return i;
+    if(sides[i] != player && c == 1)
+      return i;
+  }
+}
+char* intToString(int p)
+{
+  return NULL;
+}
+char* xHasResigned(int w)
+{
+  char *one = combine(usernames[w], " has resigned|");
+  char *two = combine("W|", one);
+  free(one);
+  int l = strlen(two);
+  char *three = intToString(l);
+  char *four = combine(three, two);
+  free(two);
+  free(three);
+  char *five = combine("OVER|", four);
+  free(four);
+  return five;
+}
+void *interpretCommand(char *command, char *text, char player)
+{
+  int w;
   if (strcmp("PLAY", command) == 0)
   {
     usernames[ucount] = text;
     ucount++;
-    return "WAIT|0|";
+    w = getPlayerFromToken(player, 0);
+    messages[w] = "WAIT|0|";
   }
   if (strcmp("MOVE", command) == 0)
   {
@@ -167,7 +197,9 @@ char *interpretCommand(char *command, char *text, char player)
       int col = text[2] - '0';
       int success = makeMove(row, col, player);
       if(success == 1)
-        return 
+      {
+
+      }
       else
       {
 
@@ -176,18 +208,28 @@ char *interpretCommand(char *command, char *text, char player)
   }
   if (strcmp("RSGN", command) == 0)
   {
-    return "OVER|21|L|You have resigned|";
+    w = getPlayerFromToken(player, 0);
+    messages[w] = "OVER|21|L|You have resigned|";
+    w = getPlayerFromToken(player, 1);
+    messages[w] = xHasResigned(w);
   }
   if (strcmp("DRAW", command) == 0)
   {
     if(strcmp("S", text) == 0)
     {
-      return "DRAW|2|S|";
+      w = getPlayerFromToken(player, 1);
+      messages[w] = "DRAW|2|S|";
     }
     if(strcmp("A", text) == 0)
-      return "OVER|18|Draw agreed upon|";
+    {
+      messages[0] = "OVER|18|Draw agreed upon|";
+      messages[1] = "OVER|18|Draw agreed upon|";
+    }
     if(strcmp("R", text) == 0)
-      return "DRAW|2|R|";
+    {
+      w = getPlayerFromToken(player, 1);
+      messages[w] = "DRAW|2|R|";
+    }
   }
 }
 char *formatMessage(char *string, int length, char player)
@@ -236,6 +278,10 @@ void playGame(int sock, int sock2, struct sockaddr *rem, socklen_t rem_len)
 {
   char buf[BUFSIZE];
   int bytes;
+  usernames = (char **)malloc(sizeof(char *) * 2);
+  messages = (char **)malloc(sizeof(char *) * 2);
+  sides = (char *)malloc(sizeof(char) * 2);
+  chooseSides();
   while (active && (bytes = read(sock, buf, BUFSIZE)) > 0)
   {
     write(STDIN_FILENO, buf, bytes);
@@ -256,8 +302,6 @@ int main(int argc, char **argv)
 {
   struct sockaddr_storage remote_host;
   socklen_t remote_host_len;
-  usernames = (char **)malloc(sizeof(char *) * 2);
-  messages = (char **)malloc(sizeof(char *) * 2);
   sock = (int *)malloc(sizeof(int) * 2);
   ucount = 0;
   char *service = argc == 2 ? argv[1] : "15000";
