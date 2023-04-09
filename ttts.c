@@ -10,10 +10,10 @@
 #include <signal.h>
 #include <errno.h>
 #define QUEUE_SIZE 8
-#define BUFSIZE 256
+#define BUFSIZE 1054
 #define HOSTSIZE 100
 #define PORTSIZE 10
-volatile int active = 1;
+int active = -2;
 typedef enum condition
 {
   xwin,
@@ -26,8 +26,8 @@ typedef struct game
   char **usernames, **messages, *sides, *board;
   int *sock, ucount;
 } game;
-char *board, *sides, **usernames, **messages;
-int ucount, *sock;
+char **usernames, **messages, *board, *sides;
+int *sock, *alloc, ucount, started;
 int openListen(char *service, int queueSize)
 {
   struct addrinfo hint, *info_list, *info;
@@ -76,15 +76,15 @@ char *combine(char *first, char *second)
   int length = strlen(first) + strlen(second) + 1;
   for (i = 0; i < strlen(first); i++)
 		combination[i] = first[i];
- int count = 0;
- while (count < strlen(second))
- {
-		combination[i] = second[count];
-		i++;
-		count++;
- }
- combination[length - 1] = '\0';
- return combination;
+  int count = 0;
+  while (count < strlen(second))
+  {
+      combination[i] = second[count];
+      i++;
+      count++;
+  }
+  combination[length - 1] = '\0';
+  return combination;
 }
 void chooseSides()
 {
@@ -93,11 +93,13 @@ void chooseSides()
  {
   sides[0] = 'X';
   sides[1] = 'O';
+  printf("X/O\n");
  }
  else
  {
   sides[0] = 'O';
   sides[1] = 'X';
+  printf("O/X\n");
  }
 }
 condition checkWin2(char c)
@@ -226,70 +228,86 @@ char* xHasY(int w, char* A, char* B, char* C)
   free(four);
   return five;
 }
+void interpretCommand2(char *command, char *text, int num)
+{
+  if (strcmp("PLAY", command) == 0)
+  {
+    if(started != 1)
+    {
+      usernames[ucount] = text;
+      ucount++;
+      messages[num] = "WAIT|0|";
+      started++;
+      active++;
+    }
+  }
+  else
+    messages[num] = "INVL|17|Invalid command|";
+}
 void interpretCommand(char *command, char *text, char player)
 {
   int c, o;
   short com = 1;
   c = getPlayerFromToken(player, 0);
   o = getPlayerFromToken(player, 1);
-  if (strcmp("PLAY", command) == 0)
+  if(started == 1)
   {
-    usernames[ucount] = text;
-    ucount++;
-    messages[c] = "WAIT|0|";
-    com = 0;
-  }
-  if (strcmp("MOVE", command) == 0)
-  {
-    if (strlen(text) < 3)
-      messages[c] = "INVL|20|Invalid coordinates|";
-    else
+    if (strcmp("MOVE", command) == 0)
     {
-      int row = text[0] - '0';
-      int col = text[2] - '0';
-      int success = makeMove(row, col, player);
-      if(success == -2)
-        messages[c] = "INVL|23|Space already occupied|";
-      if(success == -1)
+      if (strlen(text) < 5)
         messages[c] = "INVL|20|Invalid coordinates|";
-      if(success == 1)
+      else
       {
-        messages[0] = moved(row, col, c);
-        messages[1] = moved(row, col, c);
+        int row = text[2] - '0';
+        int col = text[4] - '0';
+        int success = makeMove(row, col, player);
+        if(success == -2)
+          messages[c] = "INVL|23|Space already occupied|";
+        if(success == -1)
+          messages[c] = "INVL|20|Invalid coordinates|";
+        if(success == 1)
+        {
+          printf("Success2\n");
+          messages[0] = moved(row, col, player);
+          messages[1] = moved(row, col, player);
+          alloc[0] = 1;
+          alloc[1] = 1;
+        }
+        if(success == 2)
+        {
+          messages[c] = "OVER|22|W|You have 3 in a row|";
+          messages[o] = xHasY(c, "OVER|", "L|", " has 3 in a row|");
+          alloc[o] = 1;
+        }
       }
-      if(success == 2)
-      {
-        messages[c] = "OVER|22|W|You have 3 in a row|";
-        messages[o] = xHasY(c, "OVER|", "L|", " has 3 in a row|");
-      }
+      com = 0;
     }
-    com = 0;
-  }
-  if (strcmp("RSGN", command) == 0)
-  {
-    messages[c] = "OVER|21|L|You have resigned|";
-    messages[o] = xHasY(c, "OVER|", "W|", " has resigned|");
-    com = 0;
-  }
-  if (strcmp("DRAW", command) == 0)
-  {
-    if(strcmp("S", text) == 0)
-      messages[o] = "DRAW|2|S|";
-    if(strcmp("A", text) == 0)
+    if (strcmp("RSGN", command) == 0)
     {
-      messages[0] = "OVER|18|Draw agreed upon|";
-      messages[1] = "OVER|18|Draw agreed upon|";
+      messages[c] = "OVER|21|L|You have resigned|";
+      messages[o] = xHasY(c, "OVER|", "W|", " has resigned|");
+      alloc[o] = 1;
+      com = 0;
     }
-    if(strcmp("R", text) == 0)
-      messages[o] = "DRAW|2|R|";
-    com = 0;
+    if (strcmp("DRAW", command) == 0)
+    {
+      if(strcmp("S", text) == 0)
+        messages[o] = "DRAW|2|S|";
+      if(strcmp("A", text) == 0)
+      {
+        messages[0] = "OVER|18|Draw agreed upon|";
+        messages[1] = "OVER|18|Draw agreed upon|";
+      }
+      if(strcmp("R", text) == 0)
+        messages[o] = "DRAW|2|R|";
+      com = 0;
+    }
   }
   if(com)
     messages[c] = "INVL|17|Invalid command|";
 }
-void formatMessage(char *string, int length, char player)
+void formatMessage(char *string, int length, char player, int num2)
 {
-  int c = getPlayerFromToken(player, 0);
   short format = 1;
   int i = 0;
   char *command = (char *)malloc(sizeof(char) * 5);
@@ -319,35 +337,106 @@ void formatMessage(char *string, int length, char player)
   free(number);
   char *text = (char *)malloc(sizeof(char) * num);
   count = i + 1;
-  for (i = count; string[i] != '|'; i++)
+  for (i = count; i < length; i++)
   {
-    if (((i - count) >= num) || i >= length)
+    if (((i - count) >= num))
     {
       format = 0;
       break;
     }
     text[i - count] = string[i];
   }
-  text[num - 1] = '\0';
+  if(num != 0)
+    text[num - 1] = '\0';
   if(!format)
-    messages[c] = "INVL|16|Invalid format|";
-  else
+    messages[num2] = "INVL|16|Invalid format|";
+  if(started == 1)
     interpretCommand(command, text, player);
+  else
+    interpretCommand2(command, text, num2);
 }
-void playGame(int sock, int sock2, struct sockaddr *rem, socklen_t rem_len)
+int readLine(int s, char player, int num)
 {
+  alloc[0] = 0;
+  alloc[1] = 0;
+  messages[0] = NULL;
+  messages[1] = NULL;
   char buf[BUFSIZE];
   int bytes;
-  usernames = (char **)malloc(sizeof(char *) * 2);
-  messages = (char **)malloc(sizeof(char *) * 2);
-  sides = (char *)malloc(sizeof(char) * 2);
-  chooseSides();
-  while (active && (bytes = read(sock, buf, BUFSIZE)) > 0)
+  bytes = read(s, buf, BUFSIZE);
+  formatMessage(buf, bytes, player, num);
+  if(active == 0)
   {
-    formatMessage(buf, bytes, 'X');
+    chooseSides();
+    int x = getPlayerFromToken('X', 0);
+    int o = getPlayerFromToken('O', 0);
+    char *one, *two, *three;
+    char *temp = xHasY(o, "BEGN|", "X|", "|");
+    if(messages[x] != NULL)
+    {
+      one = combine(messages[x], "\n");
+      two = combine(one, temp);
+      three = combine(two, "\n");
+      write(sock[x], three, strlen(three));
+      printf("%s", three);
+      free(one);
+      free(two);
+      free(three);
+    }
+    else
+    {
+      one = combine(temp, "\n");
+      write(sock[x], one, strlen(one));
+      printf("%s", one);
+      free(one);
+    }
+    free(temp);
+    temp = xHasY(x, "BEGN|", "O|", "|");
+    if(messages[o] != NULL)
+    {
+      one = combine(messages[o], "\n");
+      two = combine(one, temp);
+      three = combine(two, "\n");
+      write(sock[o], three, strlen(three));
+      printf("%s", three);
+      free(one);
+      free(two);
+      free(three);
+    }
+    else
+    {
+      one = combine(temp, "\n");
+      write(sock[o], one, strlen(one));
+      printf("%s", one);
+      free(one);
+    }
+    free(temp);
+    active++;
+    if(alloc[0])
+      free(messages[0]);
+    if(alloc[1])
+      free(messages[1]);
+    return 1;
   }
-  close(sock);
-  close(sock2);
+  if (!(messages[0] == NULL))
+  {
+    char *t1 = combine(messages[0], "\n");
+    printf("%s", t1);
+    write(sock[0], t1, strlen(t1));
+    free(t1);
+    if (alloc[0])
+      free(messages[0]);
+  }
+  if(!(messages[1] == NULL))
+  {
+    char *t2 = combine(messages[1], "\n");
+    printf("%s", t2);
+    write(sock[1], t2, strlen(t2));
+    free(t2);
+    if (alloc[1])
+      free(messages[1]);
+  }
+  return 1;
 }
 void setBoard()
 {
@@ -357,6 +446,39 @@ void setBoard()
     board[i] = '.';
   }
   board[9] = '\0';
+}
+void playGame(int *sock)
+{
+  int x, o, success;
+  started = -1;
+  usernames = (char **)malloc(sizeof(char *) * 2);
+  messages = (char **)malloc(sizeof(char *) * 2);
+  sides = (char *)malloc(sizeof(char) * 2);
+  alloc = (int *)malloc(sizeof(int) * 2);
+  setBoard();
+  while (started != 1)
+  {
+    success = -1;
+    while(success == -1)
+      success = readLine(sock[0], 'N', 0);
+    success = -1;
+    while (success == -1)
+      success = readLine(sock[1], 'N', 1);
+  }
+  x = getPlayerFromToken('X', 0);
+  o = getPlayerFromToken('O', 0);
+  printf("Started\n");
+  while (active)
+  {
+    success = -1;
+    while(success == -1)
+      success = readLine(sock[x], 'X', x);
+    success = -1;
+    while (success == -1)
+      success = readLine(sock[o], 'O', o);
+  }
+  close(sock[0]);
+  close(sock[1]);
 }
 int main(int argc, char **argv)
 {
@@ -379,7 +501,7 @@ int main(int argc, char **argv)
       perror("accept");
       continue;
     }
-    playGame(sock[0], sock[1], (struct sockaddr *)&remote_host, remote_host_len);
+    playGame(sock);
   }
   puts("Shutting down");
   close(listener);
