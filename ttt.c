@@ -9,7 +9,7 @@
 #include <netdb.h>
 #include <signal.h>
 #include <errno.h>
-#define BUFLEN 256
+#define BUFLEN 1054
 volatile int active = 1;
 int connectSock(char *host, char *service)
 {
@@ -43,7 +43,15 @@ int connectSock(char *host, char *service)
   fprintf(stderr, "Unable to connect to %s:%s\n", host, service);
   return -1;
  }
- return sock;
+ return sock; 
+}
+int cond(char *buf)
+{
+ if(buf[0] == 'W' && buf[1] == 'A' && buf[2] == 'I' && buf[3] == 'T')
+  return 1;
+ if(buf[0] == 'M' && buf[1] == 'O' && buf[2] == 'V' && buf[3] == 'D')
+  return 1;
+ return 0;
 }
 int main(int argc, char **argv)
 {
@@ -61,6 +69,13 @@ int main(int argc, char **argv)
  {
   buf[bytes] = '\0';
   write(sock, buf, bytes);
+  bytes = read(sock, buf, BUFLEN);
+  write(STDOUT_FILENO, buf, bytes);
+  if(cond(buf))
+  {
+   bytes = read(sock, buf, BUFLEN);
+   write(STDOUT_FILENO, buf, bytes);
+  }
  }
  close(sock);
  return EXIT_SUCCESS;
