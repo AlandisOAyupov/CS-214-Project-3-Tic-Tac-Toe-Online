@@ -27,7 +27,7 @@ typedef struct game
   int *sock, ucount;
 } game;
 char **usernames, **messages, *board, *sides;
-int *sock, *alloc, ucount, started;
+int *sock, *alloc, ucount, started, drawS;
 int openListen(char *service, int queueSize)
 {
   struct addrinfo hint, *info_list, *info;
@@ -288,18 +288,38 @@ void interpretCommand(char *command, char *text, char player)
       messages[o] = xHasY(c, "OVER|", "W|", " has resigned|");
       alloc[o] = 1;
       com = 0;
+      active = -2;
     }
     if (strcmp("DRAW", command) == 0)
     {
-      if(strcmp("S", text) == 0)
+      printf("%s\n", text);
+      if (strcmp("S", text) == 0)
+      {
         messages[o] = "DRAW|2|S|";
+        drawS = 1;
+      }
       if(strcmp("A", text) == 0)
       {
-        messages[0] = "OVER|18|Draw agreed upon|";
-        messages[1] = "OVER|18|Draw agreed upon|";
+        if(drawS == 1)
+        {
+          messages[0] = "OVER|18|Draw agreed upon|";
+          messages[1] = "OVER|18|Draw agreed upon|";
+          active = -2;
+          drawS = 0;
+        }
+        else
+          messages[c] = "INVL|17|Invalid command|";
       }
       if(strcmp("R", text) == 0)
-        messages[o] = "DRAW|2|R|";
+      {
+        if(drawS==1)
+        {
+          messages[o] = "DRAW|2|R|";
+          drawS = 0;
+        }
+        else
+          messages[c] = "INVL|17|Invalid command|";
+      }
       com = 0;
     }
   }
@@ -340,10 +360,7 @@ void formatMessage(char *string, int length, char player, int num2)
   for (i = count; i < length; i++)
   {
     if (((i - count) >= num))
-    {
-      format = 0;
       break;
-    }
     text[i - count] = string[i];
   }
   if(num != 0)
@@ -450,6 +467,7 @@ void setBoard()
 void playGame(int *sock)
 {
   int x, o, success;
+  drawS = 0;
   started = -1;
   usernames = (char **)malloc(sizeof(char *) * 2);
   messages = (char **)malloc(sizeof(char *) * 2);
@@ -468,15 +486,18 @@ void playGame(int *sock)
   x = getPlayerFromToken('X', 0);
   o = getPlayerFromToken('O', 0);
   printf("Started\n");
-  while (active)
+  while (active > 0)
   {
     success = -1;
     while(success == -1)
       success = readLine(sock[x], 'X', x);
+    if(active < 0)
+      break;
     success = -1;
     while (success == -1)
       success = readLine(sock[o], 'O', o);
   }
+  printf("Game Over\n");
   close(sock[0]);
   close(sock[1]);
 }
