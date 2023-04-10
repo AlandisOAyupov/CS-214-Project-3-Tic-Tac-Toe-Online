@@ -228,106 +228,131 @@ char* xHasY(int w, char* A, char* B, char* C)
   free(four);
   return five;
 }
-void interpretCommand2(char *command, char *text, int num)
-{
-  if (strcmp("PLAY", command) == 0)
-  {
-    if(started != 1)
-    {
-      usernames[ucount] = text;
-      ucount++;
-      messages[num] = "WAIT|0|";
-      started++;
-      active++;
-    }
-  }
-  else
-    messages[num] = "INVL|17|Invalid command|";
-}
-void interpretCommand(char *command, char *text, char player)
+short interpretCommand3(char *command, char *text, char player)
 {
   int c, o;
   short com = 1;
   c = getPlayerFromToken(player, 0);
   o = getPlayerFromToken(player, 1);
-  if(started == 1)
+  if (strcmp("DRAW", command) == 0)
   {
-    if (strcmp("MOVE", command) == 0)
+    if(strcmp("A", text) == 0)
     {
-      if (strlen(text) < 5)
-        messages[c] = "INVL|20|Invalid coordinates|";
-      else
-      {
-        int row = text[2] - '0';
-        int col = text[4] - '0';
-        int success = makeMove(row, col, player);
-        if(success == -2)
-          messages[c] = "INVL|23|Space already occupied|";
-        if(success == -1)
-          messages[c] = "INVL|20|Invalid coordinates|";
-        if(success == 1)
-        {
-          printf("Success2\n");
-          messages[0] = moved(row, col, player);
-          messages[1] = moved(row, col, player);
-          alloc[0] = 1;
-          alloc[1] = 1;
-        }
-        if(success == 2)
-        {
-          messages[c] = "OVER|22|W|You have 3 in a row|";
-          messages[o] = xHasY(c, "OVER|", "L|", " has 3 in a row|");
-          alloc[o] = 1;
-        }
-      }
-      com = 0;
-    }
-    if (strcmp("RSGN", command) == 0)
-    {
-      messages[c] = "OVER|21|L|You have resigned|";
-      messages[o] = xHasY(c, "OVER|", "W|", " has resigned|");
-      alloc[o] = 1;
-      com = 0;
+      messages[0] = "OVER|18|Draw agreed upon|";
+      messages[1] = "OVER|18|Draw agreed upon|";
       active = -2;
+      drawS = 0;
+      com = 0;
     }
-    if (strcmp("DRAW", command) == 0)
+    if(strcmp("R", text) == 0)
     {
-      printf("%s\n", text);
-      if (strcmp("S", text) == 0)
-      {
-        messages[o] = "DRAW|2|S|";
-        drawS = 1;
-      }
-      if(strcmp("A", text) == 0)
-      {
-        if(drawS == 1)
-        {
-          messages[0] = "OVER|18|Draw agreed upon|";
-          messages[1] = "OVER|18|Draw agreed upon|";
-          active = -2;
-          drawS = 0;
-        }
-        else
-          messages[c] = "INVL|17|Invalid command|";
-      }
-      if(strcmp("R", text) == 0)
-      {
-        if(drawS==1)
-        {
-          messages[o] = "DRAW|2|R|";
-          drawS = 0;
-        }
-        else
-          messages[c] = "INVL|17|Invalid command|";
-      }
+      messages[o] = "DRAW|2|R|";
+      drawS = 0;
       com = 0;
     }
   }
   if(com)
+  {
     messages[c] = "INVL|17|Invalid command|";
+    return -1;
+  }
+  return 0;
 }
-void formatMessage(char *string, int length, char player, int num2)
+short interpretCommand2(char *command, char *text, int num)
 {
+  short invl = 1;
+  if (strcmp("PLAY", command) == 0)
+  {
+    usernames[ucount] = text;
+    ucount++;
+    messages[num] = "WAIT|0|";
+    started++;
+    active++;
+    invl = 0;
+  }
+  else
+    messages[num] = "INVL|17|Invalid command|";
+  if(invl)
+    return -1;
+  else
+    return 0;
+}
+short interpretCommand(char *command, char *text, char player)
+{
+  int c, o;
+  short com = 1;
+  short invl = 0;
+  c = getPlayerFromToken(player, 0);
+  o = getPlayerFromToken(player, 1);
+  if (strcmp("MOVE", command) == 0)
+  {
+    if (strlen(text) < 5)
+    {
+      messages[c] = "INVL|20|Invalid coordinates|";
+      invl = 1;
+    }
+    else
+    {
+      int row = text[2] - '0';
+      int col = text[4] - '0';
+      int success = makeMove(row, col, player);
+      if(success == -2)
+      {
+        messages[c] = "INVL|23|Space already occupied|";
+        invl = 1;
+      }
+      if(success == -1)
+      {
+        messages[c] = "INVL|20|Invalid coordinates|";
+        invl = 1;
+      }
+      if(success == 1)
+      {
+        printf("Success2\n");
+        messages[0] = moved(row, col, player);
+        messages[1] = moved(row, col, player);
+        alloc[0] = 1;
+        alloc[1] = 1;
+      }
+      if(success == 2)
+      {
+        messages[c] = "OVER|22|W|You have 3 in a row|";
+        messages[o] = xHasY(c, "OVER|", "L|", " has 3 in a row|");
+        alloc[o] = 1;
+      }
+    }
+    com = 0;
+  }
+  if (strcmp("RSGN", command) == 0)
+  {
+    messages[c] = "OVER|21|L|You have resigned|";
+    messages[o] = xHasY(c, "OVER|", "W|", " has resigned|");
+    alloc[o] = 1;
+    com = 0;
+    active = -2;
+  }
+  if (strcmp("DRAW", command) == 0)
+  {
+    if (strcmp("S", text) == 0)
+    {
+      messages[o] = "DRAW|2|S|";
+      drawS = 1;
+      com = 0;
+    }
+  }
+  if(com)
+  {
+    messages[c] = "INVL|17|Invalid command|";
+    invl = 1;
+  }
+  if(invl)
+    return -1;
+  else
+    return 1;
+}
+short formatMessage(char *string, int length, char player, int num2)
+{
+  short success = -1;
   short format = 1;
   int i = 0;
   char *command = (char *)malloc(sizeof(char) * 5);
@@ -367,10 +392,13 @@ void formatMessage(char *string, int length, char player, int num2)
     text[num - 1] = '\0';
   if(!format)
     messages[num2] = "INVL|16|Invalid format|";
+  if(drawS == 1)
+    success = interpretCommand3(command, text, player);
   if(started == 1)
-    interpretCommand(command, text, player);
+    success = interpretCommand(command, text, player);
   else
-    interpretCommand2(command, text, num2);
+    success = interpretCommand2(command, text, num2);
+  return success;
 }
 int readLine(int s, char player, int num)
 {
@@ -380,8 +408,9 @@ int readLine(int s, char player, int num)
   messages[1] = NULL;
   char buf[BUFSIZE];
   int bytes;
+  short success;
   bytes = read(s, buf, BUFSIZE);
-  formatMessage(buf, bytes, player, num);
+  success = formatMessage(buf, bytes, player, num);
   if(active == 0)
   {
     chooseSides();
@@ -453,7 +482,7 @@ int readLine(int s, char player, int num)
     if (alloc[1])
       free(messages[1]);
   }
-  return 1;
+  return success;
 }
 void setBoard()
 {
