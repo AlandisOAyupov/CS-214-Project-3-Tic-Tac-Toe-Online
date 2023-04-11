@@ -9,6 +9,7 @@
 #include <netdb.h>
 #include <signal.h>
 #include <errno.h>
+#include <time.h>
 #define QUEUE_SIZE 8
 #define BUFSIZE 1054
 #define HOSTSIZE 100
@@ -75,32 +76,33 @@ char *combine(char *first, char *second)
   char *combination = (char *)malloc(sizeof(char) * (strlen(first) + strlen(second) + 1));
   int length = strlen(first) + strlen(second) + 1;
   for (i = 0; i < strlen(first); i++)
-		combination[i] = first[i];
+    combination[i] = first[i];
   int count = 0;
   while (count < strlen(second))
   {
-      combination[i] = second[count];
-      i++;
-      count++;
+    combination[i] = second[count];
+    i++;
+    count++;
   }
   combination[length - 1] = '\0';
   return combination;
 }
 void chooseSides()
 {
- int r = rand() % 2;
- if(r == 1)
- {
-  sides[0] = 'X';
-  sides[1] = 'O';
-  printf("X/O\n");
- }
- else
- {
-  sides[0] = 'O';
-  sides[1] = 'X';
-  printf("O/X\n");
- }
+  srand(time(NULL));
+  int r = rand() % 2;
+  if (r == 3)
+  {
+    sides[0] = 'X';
+    sides[1] = 'O';
+    printf("X/O\n");
+  }
+  else
+  {
+    sides[0] = 'O';
+    sides[1] = 'X';
+    printf("O/X\n");
+  }
 }
 condition checkWin2(char c)
 {
@@ -139,14 +141,14 @@ int makeMove(int row, int col, char player)
 {
   row--;
   col--;
-  if((row > 2) || (row < 0) || (col < 0) || (col > 2))
+  if ((row > 2) || (row < 0) || (col < 0) || (col > 2))
     return -1;
   int index = row * 3 + col;
-  if(board[index] != '.')
+  if (board[index] != '.')
     return -2;
   board[index] = player;
   condition a1 = checkStatus();
-  if(a1 == unfinished)
+  if (a1 == unfinished)
     return 1;
   else
     return 2;
@@ -155,20 +157,20 @@ int getPlayerFromToken(char player, int c)
 {
   for (int i = 0; i < 2; i++)
   {
-    if(sides[i] == player && c == 0)
+    if (sides[i] == player && c == 0)
       return i;
-    if(sides[i] != player && c == 1)
+    if (sides[i] != player && c == 1)
       return i;
   }
   return -1;
 }
-char* intToString(int p)
+char *intToString(int p)
 {
   int copy = p;
   int numDigits = 0;
-  while(copy > 0)
+  while (copy > 0)
   {
-    copy = copy/10;
+    copy = copy / 10;
     numDigits++;
   }
   char *number = (char *)malloc(sizeof(char) * (numDigits + 2));
@@ -183,10 +185,10 @@ char* intToString(int p)
   number[length - 1] = '\0';
   return number;
 }
-char* coordsToString(int row, int col, char player)
+char *coordsToString(int row, int col, char player)
 {
   char *letter;
-  if(player == 'X')
+  if (player == 'X')
     letter = "X|";
   else
     letter = "O|";
@@ -214,7 +216,7 @@ char *moved(int row, int col, int player)
   free(four);
   return five;
 }
-char* xHasY(int w, char* A, char* B, char* C)
+char *xHasY(int w, char *A, char *B, char *C)
 {
   char *one = combine(usernames[w], C);
   char *two = combine(B, one);
@@ -236,7 +238,7 @@ short interpretCommand3(char *command, char *text, char player)
   o = getPlayerFromToken(player, 1);
   if (strcmp("DRAW", command) == 0)
   {
-    if(strcmp("A", text) == 0)
+    if (strcmp("A", text) == 0)
     {
       messages[0] = "OVER|18|Draw agreed upon|";
       messages[1] = "OVER|18|Draw agreed upon|";
@@ -244,14 +246,22 @@ short interpretCommand3(char *command, char *text, char player)
       drawS = 0;
       com = 0;
     }
-    if(strcmp("R", text) == 0)
+    if (strcmp("R", text) == 0)
     {
       messages[o] = "DRAW|2|R|";
       drawS = 0;
       com = 0;
     }
   }
-  if(com)
+  if (strcmp("RSGN", command) == 0)
+  {
+    messages[c] = "OVER|21|L|You have resigned|";
+    messages[o] = xHasY(c, "OVER|", "W|", " has resigned|");
+    alloc[o] = 1;
+    com = 0;
+    active = -2;
+  }
+  if (com)
   {
     messages[c] = "INVL|17|Invalid command|";
     return -1;
@@ -272,7 +282,7 @@ short interpretCommand2(char *command, char *text, int num)
   }
   else
     messages[num] = "INVL|17|Invalid command|";
-  if(invl)
+  if (invl)
     return -1;
   else
     return 0;
@@ -293,32 +303,46 @@ short interpretCommand(char *command, char *text, char player)
     }
     else
     {
-      int row = text[2] - '0';
-      int col = text[4] - '0';
-      int success = makeMove(row, col, player);
-      if(success == -2)
+      if(text[1] != '|' || text[3] != ',')
       {
-        messages[c] = "INVL|23|Space already occupied|";
+        messages[c] = "INVL|17|Invalid command|";
         invl = 1;
       }
-      if(success == -1)
+      else
       {
-        messages[c] = "INVL|20|Invalid coordinates|";
-        invl = 1;
-      }
-      if(success == 1)
-      {
-        printf("Success2\n");
-        messages[0] = moved(row, col, player);
-        messages[1] = moved(row, col, player);
-        alloc[0] = 1;
-        alloc[1] = 1;
-      }
-      if(success == 2)
-      {
-        messages[c] = "OVER|22|W|You have 3 in a row|";
-        messages[o] = xHasY(c, "OVER|", "L|", " has 3 in a row|");
-        alloc[o] = 1;
+        int row = text[2] - '0';
+        int col = text[4] - '0';
+        int success = 0;
+        if (player != text[0])
+        {
+          messages[c] = "INVL|12|Wrong Side|";
+          invl = 1;
+        }
+        else
+          success = makeMove(row, col, player);
+        if (success == -2)
+        {
+          messages[c] = "INVL|23|Space already occupied|";
+          invl = 1;
+        }
+        if (success == -1)
+        {
+          messages[c] = "INVL|20|Invalid coordinates|";
+          invl = 1;
+        }
+        if (success == 1)
+        {
+          messages[0] = moved(row, col, player);
+          messages[1] = moved(row, col, player);
+          alloc[0] = 1;
+          alloc[1] = 1;
+        }
+        if (success == 2)
+        {
+          messages[c] = "OVER|22|W|You have 3 in a row|";
+          messages[o] = xHasY(c, "OVER|", "L|", " has 3 in a row|");
+          alloc[o] = 1;
+        }
       }
     }
     com = 0;
@@ -340,12 +364,12 @@ short interpretCommand(char *command, char *text, char player)
       com = 0;
     }
   }
-  if(com)
+  if (com)
   {
     messages[c] = "INVL|17|Invalid command|";
     invl = 1;
   }
-  if(invl)
+  if (invl)
     return -1;
   else
     return 1;
@@ -380,21 +404,26 @@ short formatMessage(char *string, int length, char player, int num2)
   number[3] = '\0';
   int num = atoi(number);
   free(number);
+  if((num + i + 1) != (length - 1))
+    format = 0;
   char *text = (char *)malloc(sizeof(char) * num);
   count = i + 1;
   for (i = count; i < length; i++)
   {
-    if (((i - count) >= num))
+    if ((i - count) >= num)
       break;
     text[i - count] = string[i];
   }
-  if(num != 0)
+  if (num != 0)
     text[num - 1] = '\0';
-  if(!format)
+  if (!format)
+  {
     messages[num2] = "INVL|16|Invalid format|";
-  if(drawS == 1)
+    return -1;
+  }
+  if (drawS == 1)
     success = interpretCommand3(command, text, player);
-  if(started == 1)
+  if (started == 1)
     success = interpretCommand(command, text, player);
   else
     success = interpretCommand2(command, text, num2);
@@ -411,23 +440,24 @@ int readLine(int s, char player, int num)
   short success;
   bytes = read(s, buf, BUFSIZE);
   success = formatMessage(buf, bytes, player, num);
-  if(active == 0)
+  if (active == 0)
   {
     chooseSides();
     int x = getPlayerFromToken('X', 0);
     int o = getPlayerFromToken('O', 0);
-    char *one, *two, *three;
+    char *one, *two;
     char *temp = xHasY(o, "BEGN|", "X|", "|");
-    if(messages[x] != NULL)
+    if (messages[x] != NULL)
     {
       one = combine(messages[x], "\n");
-      two = combine(one, temp);
-      three = combine(two, "\n");
-      write(sock[x], three, strlen(three));
-      printf("%s", three);
+      write(sock[x], one, strlen(one));
+      printf("%s", one);
+      two = combine(temp, "\n");
+      sleep(0.5);
+      write(sock[x], two, strlen(two));
+      printf("%s", two);
       free(one);
       free(two);
-      free(three);
     }
     else
     {
@@ -438,16 +468,17 @@ int readLine(int s, char player, int num)
     }
     free(temp);
     temp = xHasY(x, "BEGN|", "O|", "|");
-    if(messages[o] != NULL)
+    if (messages[o] != NULL)
     {
       one = combine(messages[o], "\n");
-      two = combine(one, temp);
-      three = combine(two, "\n");
-      write(sock[o], three, strlen(three));
-      printf("%s", three);
+      write(sock[o], one, strlen(one));
+      printf("%s", one);
+      two = combine(temp, "\n");
+      sleep(0.5);
+      write(sock[o], two, strlen(two));
+      printf("%s", two);
       free(one);
       free(two);
-      free(three);
     }
     else
     {
@@ -458,9 +489,9 @@ int readLine(int s, char player, int num)
     }
     free(temp);
     active++;
-    if(alloc[0])
+    if (alloc[0])
       free(messages[0]);
-    if(alloc[1])
+    if (alloc[1])
       free(messages[1]);
     return 1;
   }
@@ -473,7 +504,7 @@ int readLine(int s, char player, int num)
     if (alloc[0])
       free(messages[0]);
   }
-  if(!(messages[1] == NULL))
+  if (!(messages[1] == NULL))
   {
     char *t2 = combine(messages[1], "\n");
     printf("%s", t2);
@@ -506,7 +537,7 @@ void playGame(int *sock)
   while (started != 1)
   {
     success = -1;
-    while(success == -1)
+    while (success == -1)
       success = readLine(sock[0], 'N', 0);
     success = -1;
     while (success == -1)
@@ -518,9 +549,9 @@ void playGame(int *sock)
   while (active > 0)
   {
     success = -1;
-    while(success == -1)
+    while (success == -1)
       success = readLine(sock[x], 'X', x);
-    if(active < 0)
+    if (active < 0)
       break;
     success = -1;
     while (success == -1)
