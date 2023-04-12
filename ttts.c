@@ -342,6 +342,7 @@ short interpretCommand(char *command, char *text, char player)
           messages[c] = "OVER|22|W|You have 3 in a row|";
           messages[o] = xHasY(c, "OVER|", "L|", " has 3 in a row|");
           alloc[o] = 1;
+          active = -2;
         }
       }
     }
@@ -405,6 +406,8 @@ short formatMessage(char *string, int length, char player, int num2)
   int num = atoi(number);
   free(number);
   if((num + i + 1) != (length - 1))
+    format = 0;
+  if(num > 255 || num < 0)
     format = 0;
   char *text = (char *)malloc(sizeof(char) * num);
   count = i + 1;
@@ -549,15 +552,20 @@ void playGame(int *sock)
   while (active > 0)
   {
     success = -1;
-    while (success == -1)
+    while (success == -1 && active > 0)
       success = readLine(sock[x], 'X', x);
     if (active < 0)
       break;
     success = -1;
-    while (success == -1)
+    while (success == -1 && active > 0)
       success = readLine(sock[o], 'O', o);
   }
   printf("Game Over\n");
+  free(usernames);
+  free(messages);
+  free(sides);
+  free(alloc);
+  free(board);
   close(sock[0]);
   close(sock[1]);
 }
@@ -583,6 +591,7 @@ int main(int argc, char **argv)
       continue;
     }
     playGame(sock);
+    puts("Waiting for a new game...");
   }
   puts("Shutting down");
   close(listener);
