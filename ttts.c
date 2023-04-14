@@ -407,7 +407,9 @@ short formatMessage(char *string, int length, char player, int num2)
   free(number);
   if((num + i + 1) != (length - 1))
     format = 0;
-  if(num > 255 || num < 0)
+  if(string[num+i] != '|')
+    format = 0;
+  if (num > 255 || num < 0)
     format = 0;
   char *text = (char *)malloc(sizeof(char) * num);
   count = i + 1;
@@ -425,7 +427,10 @@ short formatMessage(char *string, int length, char player, int num2)
     return -1;
   }
   if (drawS == 1)
+  {
     success = interpretCommand3(command, text, player);
+    return success;
+  }
   if (started == 1)
     success = interpretCommand(command, text, player);
   else
@@ -552,12 +557,12 @@ void playGame(int *sock)
   while (active > 0)
   {
     success = -1;
-    while (success == -1 && active > 0)
+    while (success == -1)
       success = readLine(sock[x], 'X', x);
     if (active < 0)
       break;
     success = -1;
-    while (success == -1 && active > 0)
+    while (success == -1)
       success = readLine(sock[o], 'O', o);
   }
   printf("Game Over\n");
