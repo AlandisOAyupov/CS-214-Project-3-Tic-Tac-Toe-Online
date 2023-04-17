@@ -28,7 +28,7 @@ typedef struct game
   int *socks, *alloc, drawS, started, active, pcount;
 } game;
 game **arrgames;
-int storedSock;
+int storedSock, storedNum, arrSize;
 int ucount = 0;
 int openListen(char *service, int queueSize)
 {
@@ -241,9 +241,9 @@ short interpretCommand3(game *g,char *command, char *text, char player)
   {
     if (strcmp("A", text) == 0)
     {
-      g->messages[0] = "OVER|18|Draw agreed upon|";
-      g->messages[1] = "OVER|18|Draw agreed upon|";
-      g->active = -2;
+      g->messages[0] = "OVER|20|D|Draw agreed upon|";
+      g->messages[1] = "OVER|20|D|Draw agreed upon|";
+      g->active = -3;
       g->drawS = 0;
       com = 0;
     }
@@ -260,7 +260,7 @@ short interpretCommand3(game *g,char *command, char *text, char player)
     g->messages[o] = xHasY(g, c, "OVER|", "W|", " has resigned|");
     g->alloc[o] = 1;
     com = 0;
-    g->active = -2;
+    g->active = -3;
   }
   if (com)
   {
@@ -274,7 +274,9 @@ short interpretCommand2(game *g, char *command, char *text, int num)
   short invl = 1;
   if (strcmp("PLAY", command) == 0)
   {
-    g->usernames[g->pcount] = text;
+    char *name = (char*)malloc(sizeof(char) * strlen(text)+1);
+    name = strcpy(name, text);
+    g->usernames[g->pcount] = name;
     g->pcount++;
     g->messages[num] = "WAIT|0|";
     g->started++;
@@ -343,7 +345,7 @@ short interpretCommand(game *g, char *command, char *text, char player)
           g->messages[c] = "OVER|22|W|You have 3 in a row|";
           g->messages[o] = xHasY(g, c, "OVER|", "L|", " has 3 in a row|");
           g->alloc[o] = 1;
-          g->active = -2;
+          g->active = -3;
         }
       }
     }
@@ -355,7 +357,7 @@ short interpretCommand(game *g, char *command, char *text, char player)
     g->messages[o] = xHasY(g, c, "OVER|", "W|", " has resigned|");
     g->alloc[o] = 1;
     com = 0;
-    g->active = -2;
+    g->active = -3;
   }
   if (strcmp("DRAW", command) == 0)
   {
@@ -430,12 +432,16 @@ short formatMessage(game *g, char *string, int length, char player, int num2)
   if (g->drawS == 1)
   {
     success = interpretCommand3(g, command, text, player);
+    free(command);
+    free(text);
     return success;
   }
   if (g->started == 1)
     success = interpretCommand(g, command, text, player);
   else
     success = interpretCommand2(g, command, text, num2);
+  free(command);
+  free(text);
   return success;
 }
 int readLine(game *g, int s, char player, int num)
@@ -447,8 +453,11 @@ int readLine(game *g, int s, char player, int num)
   char buf[BUFSIZE];
   int bytes;
   short success;
+  short success2;
   bytes = read(s, buf, BUFSIZE);
-  success = formatMessage(g, buf, bytes, player, num);
+  if(bytes == 0)
+    return -10;
+  success2 = formatMessage(g, buf, bytes, player, num);
   if (g->active == 0)
   {
     chooseSides(g);
@@ -459,11 +468,15 @@ int readLine(game *g, int s, char player, int num)
     if (g->messages[x] != NULL)
     {
       one = combine(g->messages[x], "\n");
-      write(g->socks[x], one, strlen(one));
+      success = write(g->socks[x], one, strlen(one));
+      if(success == -1)
+        return -10;
       printf("%s", one);
       two = combine(temp, "\n");
       sleep(0.5);
-      write(g->socks[x], two, strlen(two));
+      success = write(g->socks[x], two, strlen(two));
+      if(success == -1)
+        return -10;
       printf("%s", two);
       free(one);
       free(two);
@@ -471,7 +484,9 @@ int readLine(game *g, int s, char player, int num)
     else
     {
       one = combine(temp, "\n");
-      write(g->socks[x], one, strlen(one));
+      success = write(g->socks[x], one, strlen(one));
+      if(success == -1)
+        return -10;
       printf("%s", one);
       free(one);
     }
@@ -480,11 +495,15 @@ int readLine(game *g, int s, char player, int num)
     if (g->messages[o] != NULL)
     {
       one = combine(g->messages[o], "\n");
-      write(g->socks[o], one, strlen(one));
+      success = write(g->socks[o], one, strlen(one));
+      if(success == -1)
+        return -10;
       printf("%s", one);
       two = combine(temp, "\n");
       sleep(0.5);
-      write(g->socks[o], two, strlen(two));
+      success = write(g->socks[o], two, strlen(two));
+      if(success == -1)
+        return -10;
       printf("%s", two);
       free(one);
       free(two);
@@ -492,7 +511,9 @@ int readLine(game *g, int s, char player, int num)
     else
     {
       one = combine(temp, "\n");
-      write(g->socks[o], one, strlen(one));
+      success = write(g->socks[o], one, strlen(one));
+      if(success == -1)
+        return -10;
       printf("%s", one);
       free(one);
     }
@@ -508,7 +529,9 @@ int readLine(game *g, int s, char player, int num)
   {
     char *t1 = combine(g->messages[0], "\n");
     printf("%s", t1);
-    write(g->socks[0], t1, strlen(t1));
+    success = write(g->socks[0], t1, strlen(t1));
+    if(success == -1)
+        return -10;
     free(t1);
     if (g->alloc[0])
       free(g->messages[0]);
@@ -517,12 +540,14 @@ int readLine(game *g, int s, char player, int num)
   {
     char *t2 = combine(g->messages[1], "\n");
     printf("%s", t2);
-    write(g->socks[1], t2, strlen(t2));
+    success = write(g->socks[1], t2, strlen(t2));
+    if(success == -1)
+        return -10;
     free(t2);
     if (g->alloc[1])
       free(g->messages[1]);
   }
-  return success;
+  return success2;
 }
 void setBoard(game *g)
 {
@@ -533,25 +558,55 @@ void setBoard(game *g)
   }
   g->board[9] = '\0';
 }
-void playGame(int sock)
+void clearGame(game *g)
+{
+  free(g->board);
+  free(g->usernames[0]);
+  free(g->usernames[1]);
+  g->active = -4;
+  g->drawS = 0;
+  g->started = -1;
+  g->pcount = 0;
+  setBoard(g);
+}
+int playGame(int sock, fd_set csock)
 {
   game *currGame = NULL;
   int playerNum;
+  int connectionCheck = 0;
   for (int i = 0; i < ucount / 2; i++)
   {
-    if(sock == arrgames[i/2]->socks[0])
+    if(sock == arrgames[i]->socks[0])
     {
-      currGame = arrgames[i / 2];
+      currGame = arrgames[i];
       playerNum = 0;
     }
-    if(sock == arrgames[i/2]->socks[1])
+    if(sock == arrgames[i]->socks[1])
     {
-      currGame = arrgames[i / 2];
+      currGame = arrgames[i];
       playerNum = 1;
     }
   }
   if(currGame != NULL)
-    readLine(currGame, sock, currGame->sides[playerNum], playerNum);
+    connectionCheck = readLine(currGame, sock, currGame->sides[playerNum], playerNum);
+  if(currGame->active == -3 || connectionCheck == -10)
+  {
+    int sock;
+    int opp = 0;
+    if (playerNum == 0)
+      opp = 1;
+    else
+      opp = 0;
+    sock = currGame->socks[opp];
+    if(connectionCheck == -10)
+    {
+      printf("OVER|32|W|Other player lost connection|\n");
+      write(sock, "OVER|32|W|Other player lost connection|\n", strlen("OVER|32|W|Other player lost connection|\n"));
+    }
+    return sock;
+  }
+  else
+    return -1;
 }
 void createGame(game *g)
 {
@@ -576,26 +631,68 @@ int acceptConnection(int listener)
   int sock = accept(listener, (struct sockaddr *)&remote_host, &remote_host_len);
   if(sock < 0)
     perror("accept");
-  if(ucount % 2 == 1)
+  short assign = 0;
+  if (storedNum != -1)
   {
-    int index = ucount / 2;
-    printf("%d\n", index);
-    createGame(arrgames[index]);
-    printf("%d\n", index);
-    arrgames[index]->socks[0] = storedSock;
-    arrgames[index]->socks[1] = sock;
+    printf("%d\n", storedNum);
+    if(storedNum == ucount/2)
+    {
+      createGame(arrgames[storedNum]);
+      arrgames[storedNum]->socks[0] = storedSock;
+      arrgames[storedNum]->socks[1] = sock;
+      ucount++;
+      storedSock = -1;
+      storedNum = -1;
+      assign = 1;
+    }
+    else
+    {
+      arrgames[storedNum]->socks[0] = storedSock;
+      arrgames[storedNum]->socks[1] = sock;
+      storedSock = -1;
+      storedNum = -1;
+      assign = 1;
+    }
   }
-  else
+  if(!assign)
   {
-    storedSock = sock;
+    for (int i = 0; i < ucount / 2; i++)
+    {
+      if(arrgames[i]->active == -4)
+      {
+        storedSock = sock;
+        storedNum = i;
+        printf("%d\n", i);
+        arrgames[i]->active = -2;
+        assign = 1;
+      }
+    }
   }
-  ucount++;
+  if(!assign)
+  {
+    if(ucount % 2 == 0)
+    {
+      int index2 = ucount / 2;
+      storedSock = sock;
+      storedNum = ucount / 2;
+      printf("%d\n", index2);
+      ucount++;
+    }
+  }
+  if((ucount+2)/2 > arrSize)
+  {
+    arrSize += 2;
+    arrgames = realloc(arrgames, sizeof(game*) * arrSize);
+  }
   return sock;
 }
 int main(int argc, char **argv)
 {
-  arrgames = (game**)malloc(sizeof(game*) * 10);
-  char *service = argc == 2 ? argv[1] : "15000";
+  arrSize = 10;
+  arrgames = (game**)malloc(sizeof(game*) * arrSize);
+  storedSock = -1;
+  storedNum = -1;
+  char *service = argc == 2 ? argv[1] : "14000";
   fd_set csock, rsock;
   int listener = openListen(service, QUEUE_SIZE);
   if (listener < 0)
@@ -619,7 +716,12 @@ int main(int argc, char **argv)
         }
         else
         {
-          playGame(i);
+          int end = playGame(i, csock);
+          if(end != -1)
+          {
+            FD_CLR(i, &csock);
+            FD_CLR(end, &csock);
+          }
         }
       }
     }
