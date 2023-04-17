@@ -58,6 +58,8 @@ char side(char *buf)
 }
 int cond(char *buf)
 {
+  if (buf[0] == 'O' && buf[1] == 'V' && buf[2] == 'E' && buf[3] == 'R')
+    return 3;
   if (buf[0] == 'W' && buf[1] == 'A' && buf[2] == 'I' && buf[3] == 'T')
     return 2;
   if (buf[0] == 'M' && buf[1] == 'O' && buf[2] == 'V' && buf[3] == 'D')
@@ -104,6 +106,8 @@ int main(int argc, char **argv)
       bytes = read(sock, buf, BUFLEN);
       write(STDOUT_FILENO, buf, bytes);
     }
+    if (cond(buf) == 3)
+      break;
   }
   close(sock);
   return EXIT_SUCCESS;
