@@ -6,11 +6,14 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/select.h>
 #include <netdb.h>
 #include <signal.h>
 #include <errno.h>
+#include <pthread.h>
 #define BUFLEN 1054
-volatile int active = 1;
+int sock;
+int active = 1;
 int connectSock(char *host, char *service)
 {
   struct addrinfo hints, *info_list, *info;
@@ -66,10 +69,36 @@ int cond(char *buf)
     return 1;
   return 0;
 }
+void* writef()
+{
+  int bytes;
+  char buf[BUFLEN];
+  while ((bytes = read(STDIN_FILENO, buf, BUFLEN)) > 0)
+  {
+    buf[bytes] = '\0';
+    write(sock, buf, bytes);
+    if(active == 0)
+      break;
+  }
+  return NULL;
+}
+void* readf()
+{
+  int bytes;
+  char buf[BUFLEN];
+  while ((bytes = read(sock, buf, BUFLEN)) > 0)
+  {
+    write(STDOUT_FILENO, buf, bytes);
+    if (cond(buf) == 3)
+    {
+      active = 0;
+      break;
+    }
+  }
+  return NULL;
+}
 int main(int argc, char **argv)
 {
-  int sock, bytes;
-  char buf[BUFLEN];
   if (argc != 3)
   {
     printf("Host/Servive Required\n");
@@ -78,37 +107,11 @@ int main(int argc, char **argv)
   sock = connectSock(argv[1], argv[2]);
   if (sock < 0)
     exit(EXIT_FAILURE);
-  while ((bytes = read(STDIN_FILENO, buf, BUFLEN)) > 0)
-  {
-    buf[bytes] = '\0';
-    write(sock, buf, bytes);
-    bytes = read(sock, buf, BUFLEN);
-    write(STDOUT_FILENO, buf, bytes);
-    if (cond(buf) == 2)
-      break;
-  }
-  bytes = read(sock, buf, BUFLEN);
-  write(STDOUT_FILENO, buf, bytes);
-  char s = side(buf);
-  if (s == 'O')
-  {
-    bytes = read(sock, buf, BUFLEN);
-    write(STDOUT_FILENO, buf, bytes);
-  }
-  while ((bytes = read(STDIN_FILENO, buf, BUFLEN)) > 0)
-  {
-    buf[bytes] = '\0';
-    write(sock, buf, bytes);
-    bytes = read(sock, buf, BUFLEN);
-    write(STDOUT_FILENO, buf, bytes);
-    if (cond(buf) == 1)
-    {
-      bytes = read(sock, buf, BUFLEN);
-      write(STDOUT_FILENO, buf, bytes);
-    }
-    if (cond(buf) == 3)
-      break;
-  }
+  pthread_t t1, t2;
+  pthread_create(&t1, NULL, &readf, NULL);
+  pthread_create(&t2, NULL, &writef, NULL);
+  pthread_join(t1, NULL);
+  pthread_join(t2, NULL);
   close(sock);
   return EXIT_SUCCESS;
 }
