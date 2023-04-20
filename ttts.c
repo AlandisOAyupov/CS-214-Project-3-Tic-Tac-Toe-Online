@@ -88,12 +88,22 @@ char *combine(char *first, char *second)
   combination[length - 1] = '\0';
   return combination;
 }
-void changeTurn(game *g)
+int containsUser(char *string)
 {
-  if(g->turn == 'X')
-    g->turn = 'O';
-  if(g->turn == 'O')
-    g->turn = 'X';
+  for (int i = 0; i < ucount / 2; i++)
+  {
+    if(arrgames[i]->usernames[0] != NULL)
+    {
+      if(strcmp(arrgames[i]->usernames[0], string) == 0)
+        return 1;
+    }
+    if(arrgames[i]->usernames[1] != NULL)
+    {
+      if(strcmp(arrgames[i]->usernames[1], string) == 0)
+        return 1;
+    }
+  }
+  return 0;
 }
 void chooseSides(game *g)
 {
@@ -243,17 +253,24 @@ short interpretCommand2(game *g, char *command, char *text, int num)
   short invl = 1;
   if (strcmp("PLAY", command) == 0)
   {
-    char *name = (char*)malloc(sizeof(char) * strlen(text)+1);
-    name = strcpy(name, text);
-    g->usernames[g->pcount] = name;
-    g->pcount++;
-    g->messages[num] = "WAIT|0|";
-    g->started++;
-    g->active++;
-    invl = 0;
+    if(containsUser(text) != 1)
+    {
+      char *name = (char*)malloc(sizeof(char) * strlen(text)+1);
+      name = strcpy(name, text);
+      g->usernames[g->pcount] = name;
+      g->pcount++;
+      g->messages[num] = "WAIT|0|";
+      g->started++;
+      g->active++;
+      invl = 0;
+    }
+    else
+    {
+      g->messages[num] = "INVL|23|Username already taken|";
+    }
   }
   else
-    g->messages[num] = "INVL|17|Invalid command|";
+    g->messages[num] = "INVL|16|Invalid command|";
   if (invl)
     return -1;
   else
@@ -261,6 +278,7 @@ short interpretCommand2(game *g, char *command, char *text, int num)
 }
 short interpretCommand(game *g, char *command, char *text, char player)
 {
+  printf("%c:%c\n", player, g->turn);
   int c, o;
   short com = 1;
   short invl = 0;
@@ -272,14 +290,14 @@ short interpretCommand(game *g, char *command, char *text, char player)
     {
       if (strlen(text) < 5)
       {
-        g->messages[c] = "INVL|20|Invalid coordinates|";
+        g->messages[c] = "INVL|19|Invalid coordinates|";
         invl = 1;
       }
       else
       {
         if(text[1] != '|' || text[3] != ',')
         {
-          g->messages[c] = "INVL|17|Invalid command|";
+          g->messages[c] = "INVL|16|Invalid command|";
           invl = 1;
         }
         else
@@ -289,32 +307,35 @@ short interpretCommand(game *g, char *command, char *text, char player)
           int success = 0;
           if (player != text[0])
           {
-            g->messages[c] = "INVL|12|Wrong Side|";
+            g->messages[c] = "INVL|11|Wrong Side|";
             invl = 1;
           }
           else
             success = makeMove(g, row, col, player);
           if (success == -2)
           {
-            g->messages[c] = "INVL|23|Space already occupied|";
+            g->messages[c] = "INVL|22|Space already occupied|";
             invl = 1;
           }
           if (success == -1)
           {
-            g->messages[c] = "INVL|20|Invalid coordinates|";
+            g->messages[c] = "INVL|19|Invalid coordinates|";
             invl = 1;
           }
           if (success == 1)
           {
+            if(g->turn == 'X')
+              g->turn = 'O';
+            else
+              g->turn = 'X';
             g->messages[0] = moved(g, row, col, player);
             g->messages[1] = moved(g, row, col, player);
             g->alloc[0] = 1;
             g->alloc[1] = 1;
-            changeTurn(g);
           }
           if (success == 2)
           {
-            g->messages[c] = "OVER|22|W|You have 3 in a row|";
+            g->messages[c] = "OVER|21|W|You have 3 in a row|";
             g->messages[o] = xHasY(g, c, "OVER|", "L|", " has 3 in a row|");
             g->alloc[o] = 1;
             g->active = -3;
@@ -324,14 +345,14 @@ short interpretCommand(game *g, char *command, char *text, char player)
     }
     else
     {
-      g->messages[c] = "INVL|15|Not your turn|";
+      g->messages[c] = "INVL|14|Not your turn|";
       invl = 1;
     }
     com = 0;
   }
   if (strcmp("RSGN", command) == 0)
   {
-    g->messages[c] = "OVER|21|L|You have resigned|";
+    g->messages[c] = "OVER|20|L|You have resigned|";
     g->messages[o] = xHasY(g, c, "OVER|", "W|", " has resigned|");
     g->alloc[o] = 1;
     com = 0;
@@ -341,14 +362,23 @@ short interpretCommand(game *g, char *command, char *text, char player)
   {
     if (strcmp("S", text) == 0)
     {
-      g->messages[o] = "DRAW|2|S|";
-      g->drawS = c;
-      com = 0;
+      if(g->drawS >= 0)
+      {
+        g->messages[c] = "INVL|45|Draw request already sent by opposite player|";
+        com = 0;
+        invl = 1;
+      }
+      else
+      {
+        g->messages[o] = "DRAW|2|S|";
+        g->drawS = c;
+        com = 0;
+      }
     }
     if (strcmp("A", text) == 0 && c != g->drawS && g->drawS >= 0)
     {
-      g->messages[0] = "OVER|20|D|Draw agreed upon|";
-      g->messages[1] = "OVER|20|D|Draw agreed upon|";
+      g->messages[0] = "OVER|19|D|Draw agreed upon|";
+      g->messages[1] = "OVER|19|D|Draw agreed upon|";
       g->active = -3;
       g->drawS = -1;
       com = 0;
@@ -362,7 +392,7 @@ short interpretCommand(game *g, char *command, char *text, char player)
   }
   if (com)
   {
-    g->messages[c] = "INVL|17|Invalid command|";
+    g->messages[c] = "INVL|16|Invalid command|";
     invl = 1;
   }
   if (invl)
@@ -459,7 +489,6 @@ int readLine(game *g, int s, char player, int num)
         return -10;
       printf("%s", one);
       two = combine(temp, "\n");
-      sleep(0.5);
       success = write(g->socks[x], two, strlen(two));
       if(success == -1)
         return -10;
@@ -486,7 +515,6 @@ int readLine(game *g, int s, char player, int num)
         return -10;
       printf("%s", one);
       two = combine(temp, "\n");
-      sleep(0.5);
       success = write(g->socks[o], two, strlen(two));
       if(success == -1)
         return -10;
@@ -517,7 +545,7 @@ int readLine(game *g, int s, char player, int num)
     printf("%s", t1);
     success = write(g->socks[0], t1, strlen(t1));
     if(success == -1)
-        return -10;
+      return -10;
     free(t1);
     if (g->alloc[0])
       free(g->messages[0]);
@@ -528,7 +556,7 @@ int readLine(game *g, int s, char player, int num)
     printf("%s", t2);
     success = write(g->socks[1], t2, strlen(t2));
     if(success == -1)
-        return -10;
+      return -10;
     free(t2);
     if (g->alloc[1])
       free(g->messages[1]);
@@ -549,6 +577,8 @@ void clearGame(game *g)
   free(g->board);
   free(g->usernames[0]);
   free(g->usernames[1]);
+  g->usernames[0] = NULL;
+  g->usernames[1] = NULL;
   g->active = -4;
   g->drawS = -1;
   g->started = -1;
@@ -587,8 +617,8 @@ int playGame(int sock, fd_set csock)
     sock = currGame->socks[opp];
     if(connectionCheck == -10)
     {
-      printf("OVER|32|W|Other player lost connection|\n");
-      write(sock, "OVER|32|W|Other player lost connection|\n", strlen("OVER|32|W|Other player lost connection|\n"));
+      printf("OVER|31|W|Other player lost connection|\n");
+      write(sock, "OVER|31|W|Other player lost connection|\n", strlen("OVER|31|W|Other player lost connection|\n"));
     }
     return sock;
   }
@@ -599,6 +629,8 @@ void createGame(game *g)
 {
   g = (game *)malloc(sizeof(game));
   g->usernames = (char **)malloc(sizeof(char *) * 2);
+  g->usernames[0] = NULL;
+  g->usernames[1] = NULL;
   g->messages = (char **)malloc(sizeof(char *) * 2);
   g->sides = (char *)malloc(sizeof(char) * 2);
   g->alloc = (int *)malloc(sizeof(int) * 2);
