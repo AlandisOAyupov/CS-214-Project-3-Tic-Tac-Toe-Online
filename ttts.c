@@ -24,12 +24,11 @@ typedef enum condition
 } condition;
 typedef struct game
 {
-  char **usernames, **messages, *sides, *board, turn;
+  char **residue, **usernames, **messages, *sides, *board, turn;
   int *socks, *alloc, drawS, started, active, pcount;
 } game;
 game **arrgames;
-int storedSock, storedNum, arrSize;
-int ucount = 0;
+int storedSock, storedNum, arrSize, ucount = 0;
 int openListen(char *service, int queueSize)
 {
   struct addrinfo hint, *info_list, *info;
@@ -71,6 +70,18 @@ int openListen(char *service, int queueSize)
   }
   return sock;
 }
+int numFields(char *string)
+{
+  if(strcmp(string, "PLAY") == 0)
+    return 3;
+  if (strcmp(string, "MOVE") == 0)
+    return 4;
+  if (strcmp(string, "DRAW") == 0)
+    return 3;
+  if (strcmp(string, "RSGN") == 0)
+    return 2;
+  return -1;
+}
 char *combine(char *first, char *second)
 {
   int i = 0;
@@ -79,7 +90,7 @@ char *combine(char *first, char *second)
   for (i = 0; i < strlen(first); i++)
     combination[i] = first[i];
   int count = 0;
-  while (count < strlen(second))
+  while (i < length)
   {
     combination[i] = second[count];
     i++;
@@ -290,7 +301,7 @@ short interpretCommand(game *g, char *command, char *text, char player)
     {
       if (strlen(text) < 5)
       {
-        g->messages[c] = "INVL|19|Invalid coordinates|";
+        g->messages[c] = "INVL|20|Invalid coordinates|";
         invl = 1;
       }
       else
@@ -314,12 +325,12 @@ short interpretCommand(game *g, char *command, char *text, char player)
             success = makeMove(g, row, col, player);
           if (success == -2)
           {
-            g->messages[c] = "INVL|22|Space already occupied|";
+            g->messages[c] = "INVL|23|Space already occupied|";
             invl = 1;
           }
           if (success == -1)
           {
-            g->messages[c] = "INVL|19|Invalid coordinates|";
+            g->messages[c] = "INVL|20|Invalid coordinates|";
             invl = 1;
           }
           if (success == 1)
@@ -335,7 +346,7 @@ short interpretCommand(game *g, char *command, char *text, char player)
           }
           if (success == 2)
           {
-            g->messages[c] = "OVER|21|W|You have 3 in a row|";
+            g->messages[c] = "OVER|22|W|You have 3 in a row|";
             g->messages[o] = xHasY(g, c, "OVER|", "L|", " has 3 in a row|");
             g->alloc[o] = 1;
             g->active = -3;
@@ -400,61 +411,135 @@ short interpretCommand(game *g, char *command, char *text, char player)
   else
     return 1;
 }
+void cpyToResidue(game *g, char *string, int length, int num)
+{
+  g->residue[num] = (char *)malloc(sizeof(char) * (length + 1));
+  strncpy(g->residue[num], string, length);
+  g->residue[num][length] = '\0';
+}
 short formatMessage(game *g, char *string, int length, char player, int num2)
 {
-  short success = -1;
-  short format = 1;
-  int i = 0;
-  char *command = (char *)malloc(sizeof(char) * 5);
-  for (i = 0; string[i] != '|'; i++)
+  char *word = (char *)malloc(sizeof(char) * strlen(string) + 1);
+  if(g->residue[num2] != NULL)
   {
-    if (i >= 4 || i >= length)
+    free(word);
+    word = combine(g->residue[num2], string);
+    free(g->residue[num2]);
+    g->residue[num2] = NULL;
+  }
+  else
+    strcpy(word, string);
+  short success = -1, format = 1;
+  int i = 0, fieldsC = 0;
+  char *command = (char *)malloc(sizeof(char) * 5);
+  for (i = 0; i < strlen(word); i++)
+  {
+    if(word[i] == '|')
+    {
+      fieldsC++;
+      break;
+    }
+    if(i >= 4)
     {
       format = 0;
       break;
     }
-    command[i] = string[i];
+    command[i] = word[i];
   }
   command[4] = '\0';
-  char *number = (char *)malloc(sizeof(char) * 4);
-  int count = i + 1;
-  for (i = count; string[i] != '|'; i++)
+  if (fieldsC < 1)
   {
-    if (((i - count) >= 3) || (i >= length) || string[i] < 48 || string[i] > 57)
+    printf("1\n");
+    cpyToResidue(g, string, length, num2);
+    free(command);
+    return -2;
+  }
+  char *number = (char *)malloc(sizeof(char) * 4);
+  int fields = numFields(command);
+  int count = i + 1;
+  for (i = i + 1; i < strlen(word); i++)
+  {
+    if(word[i] == '|')
     {
-      format = 0;
-      break;
+      fieldsC++;
+      if(fieldsC == 2)
+        break;
     }
-    number[i - count] = string[i];
+    else
+    {
+      if (((i - count) >= 3) || word[i] < 48 || word[i] > 57)
+      {
+        format = 0;
+        break;
+      }
+      number[i - count] = word[i];
+    }
   }
   number[3] = '\0';
   int num = atoi(number);
   free(number);
-  if((num + i + 1) != (length - 1))
-    format = 0;
-  if(string[num+i] != '|')
-    format = 0;
+  if(fieldsC < 2)
+  {
+    printf("2\n");
+    cpyToResidue(g, string, length, num2);
+    free(command);
+    return -2;
+  }
   if (num > 255 || num < 0)
     format = 0;
   char *text = (char *)malloc(sizeof(char) * num);
   count = i + 1;
-  for (i = count; i < length; i++)
+  for (i = i + 1; i < strlen(word); i++)
   {
-    if ((i - count) >= num)
+    if(fieldsC >= fields)
       break;
-    text[i - count] = string[i];
+    if (word[i] == '|')
+    {
+      fieldsC++;
+      if(fieldsC >= fields)
+        break;
+    }
+    if((i - count) >= num)
+    {
+      format = 0;
+      break;
+    }
+    text[i - count] = word[i];
   }
   if (num != 0)
+  {
     text[num - 1] = '\0';
+  }
+  if(fieldsC < fields)
+  {
+    cpyToResidue(g, string, length, num2);
+    free(command);
+    free(text);
+    return -2;
+  }
   if (!format)
   {
-    g->messages[num2] = "INVL|16|Invalid format|";
+    g->messages[num2] = "INVL|15|Invalid format|";
     return -1;
   }
   if (g->started == 1)
     success = interpretCommand(g, command, text, player);
   else
     success = interpretCommand2(g, command, text, num2);
+  if(i+1<strlen(word))
+  {
+    char *newString = (char*)malloc(sizeof(char) * (strlen(word)-i));
+    int length2 = strlen(word) - i;
+    num = 0;
+    for (i = i + 1; i < strlen(word); i++)
+    {
+      newString[num] = word[i];
+      num++;
+    }
+    newString[length2 - 1] = '\0';
+    success = formatMessage(g, newString, length2, player, num2);
+  }
+  free(word);
   free(command);
   free(text);
   return success;
@@ -465,14 +550,21 @@ int readLine(game *g, int s, char player, int num)
   g->alloc[1] = 0;
   g->messages[0] = NULL;
   g->messages[1] = NULL;
-  char buf[BUFSIZE];
+  char *buf = (char *)malloc(sizeof(char) * BUFSIZE);
   int bytes;
   short success;
   short success2;
   bytes = read(s, buf, BUFSIZE);
-  if(bytes == 0)
+  buf[bytes] = '\0';
+  if (bytes == 0)
+  {
+    free(buf);
     return -10;
+  }
   success2 = formatMessage(g, buf, bytes, player, num);
+  free(buf);
+  if (success2 == -5)
+    return -5;
   if (g->active == 0)
   {
     chooseSides(g);
@@ -575,6 +667,12 @@ void setBoard(game *g)
 void clearGame(game *g)
 {
   free(g->board);
+  if(g->residue[0] != NULL)
+    free(g->residue[0]);
+  if(g->residue[1] != NULL)
+    free(g->residue[1]);
+  g->residue[0] = NULL;
+  g->residue[1] = NULL;
   free(g->usernames[0]);
   free(g->usernames[1]);
   g->usernames[0] = NULL;
@@ -628,6 +726,9 @@ int playGame(int sock, fd_set csock)
 void createGame(game *g)
 {
   g = (game *)malloc(sizeof(game));
+  g->residue = (char **)malloc(sizeof(char *) * 2);
+  g->residue[0] = NULL;
+  g->residue[1] = NULL;
   g->usernames = (char **)malloc(sizeof(char *) * 2);
   g->usernames[0] = NULL;
   g->usernames[1] = NULL;
@@ -710,8 +811,7 @@ int main(int argc, char **argv)
 {
   arrSize = 10;
   arrgames = (game**)malloc(sizeof(game*) * arrSize);
-  storedSock = -1;
-  storedNum = -1;
+  storedSock = -1, storedNum = -1;
   char *service = argc == 2 ? argv[1] : "14000";
   fd_set csock, rsock;
   int listener = openListen(service, QUEUE_SIZE);
