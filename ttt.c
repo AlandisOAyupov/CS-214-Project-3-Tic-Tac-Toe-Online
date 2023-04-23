@@ -12,8 +12,7 @@
 #include <errno.h>
 #include <pthread.h>
 #define BUFLEN 1054
-int sock;
-int active = 1;
+int sock, active = 1;
 int connectSock(char *host, char *service)
 {
   struct addrinfo hints, *info_list, *info;
@@ -75,8 +74,12 @@ void* writef()
   char buf[BUFLEN];
   while ((bytes = read(STDIN_FILENO, buf, BUFLEN)) > 0)
   {
-    buf[bytes] = '\0';
-    write(sock, buf, bytes);
+    char *cpy = (char *)malloc(sizeof(char) * (bytes - 1));
+    for (int i = 0; i < bytes - 1; i++)
+    {
+      cpy[i] = buf[i];
+    }
+    write(sock, cpy, bytes - 1);
     if(active == 0)
       break;
   }
