@@ -104,15 +104,11 @@ int containsUser(char *string)
   for (int i = 0; i < ucount / 2; i++)
   {
     if(arrgames[i]->usernames[0] != NULL)
-    {
       if(strcmp(arrgames[i]->usernames[0], string) == 0)
         return 1;
-    }
     if(arrgames[i]->usernames[1] != NULL)
-    {
       if(strcmp(arrgames[i]->usernames[1], string) == 0)
         return 1;
-    }
   }
   return 0;
 }
@@ -276,9 +272,7 @@ short interpretCommand2(game *g, char *command, char *text, int num)
       invl = 0;
     }
     else
-    {
       g->messages[num] = "INVL|23|Username already taken|";
-    }
   }
   else
     g->messages[num] = "INVL|16|Invalid command|";
@@ -417,154 +411,9 @@ void cpyToResidue(game *g, char *string, int length, int num)
   strncpy(g->residue[num], string, length);
   g->residue[num][length] = '\0';
 }
-short formatMessage(game *g, char *string, int length, char player, int num2)
+int playMessages(game *g)
 {
-  char *word = (char *)malloc(sizeof(char) * strlen(string) + 1);
-  if(g->residue[num2] != NULL)
-  {
-    free(word);
-    word = combine(g->residue[num2], string);
-    free(g->residue[num2]);
-    g->residue[num2] = NULL;
-  }
-  else
-    strcpy(word, string);
-  short success = -1, format = 1;
-  int i = 0, fieldsC = 0;
-  char *command = (char *)malloc(sizeof(char) * 5);
-  for (i = 0; i < strlen(word); i++)
-  {
-    if(word[i] == '|')
-    {
-      fieldsC++;
-      break;
-    }
-    if(i >= 4)
-    {
-      format = 0;
-      break;
-    }
-    command[i] = word[i];
-  }
-  command[4] = '\0';
-  if (fieldsC < 1)
-  {
-    printf("1\n");
-    cpyToResidue(g, string, length, num2);
-    free(command);
-    return -2;
-  }
-  char *number = (char *)malloc(sizeof(char) * 4);
-  int fields = numFields(command);
-  int count = i + 1;
-  for (i = i + 1; i < strlen(word); i++)
-  {
-    if(word[i] == '|')
-    {
-      fieldsC++;
-      if(fieldsC == 2)
-        break;
-    }
-    else
-    {
-      if (((i - count) >= 3) || word[i] < 48 || word[i] > 57)
-      {
-        format = 0;
-        break;
-      }
-      number[i - count] = word[i];
-    }
-  }
-  number[3] = '\0';
-  int num = atoi(number);
-  free(number);
-  if(fieldsC < 2)
-  {
-    printf("2\n");
-    cpyToResidue(g, string, length, num2);
-    free(command);
-    return -2;
-  }
-  if (num > 255 || num < 0)
-    format = 0;
-  char *text = (char *)malloc(sizeof(char) * num);
-  count = i + 1;
-  for (i = i + 1; i < strlen(word); i++)
-  {
-    if(fieldsC >= fields)
-      break;
-    if (word[i] == '|')
-    {
-      fieldsC++;
-      if(fieldsC >= fields)
-        break;
-    }
-    if((i - count) >= num)
-    {
-      format = 0;
-      break;
-    }
-    text[i - count] = word[i];
-  }
-  if (num != 0)
-  {
-    text[num - 1] = '\0';
-  }
-  if(fieldsC < fields)
-  {
-    cpyToResidue(g, string, length, num2);
-    free(command);
-    free(text);
-    return -2;
-  }
-  if (!format)
-  {
-    g->messages[num2] = "INVL|15|Invalid format|";
-    return -1;
-  }
-  if (g->started == 1)
-    success = interpretCommand(g, command, text, player);
-  else
-    success = interpretCommand2(g, command, text, num2);
-  if(i+1<strlen(word))
-  {
-    char *newString = (char*)malloc(sizeof(char) * (strlen(word)-i));
-    int length2 = strlen(word) - i;
-    num = 0;
-    for (i = i + 1; i < strlen(word); i++)
-    {
-      newString[num] = word[i];
-      num++;
-    }
-    newString[length2 - 1] = '\0';
-    success = formatMessage(g, newString, length2, player, num2);
-  }
-  free(word);
-  free(command);
-  free(text);
-  return success;
-}
-int readLine(game *g, int s, char player, int num)
-{
-  g->alloc[0] = 0;
-  g->alloc[1] = 0;
-  g->messages[0] = NULL;
-  g->messages[1] = NULL;
-  char *buf = (char *)malloc(sizeof(char) * BUFSIZE);
-  int bytes;
   short success;
-  short success2;
-  bytes = read(s, buf, BUFSIZE);
-  buf[bytes] = '\0';
-  if (bytes == 0)
-  {
-    free(buf);
-    return -10;
-  }
-  success2 = formatMessage(g, buf, bytes, player, num);
-  free(buf);
-  if (success2 == -5)
-    return -5;
   if (g->active == 0)
   {
     chooseSides(g);
@@ -631,7 +480,7 @@ int readLine(game *g, int s, char player, int num)
       free(g->messages[1]);
     return 1;
   }
-  if (!(g->messages[0] == NULL))
+  if (g->messages[0] != NULL)
   {
     char *t1 = combine(g->messages[0], "\n");
     printf("%s", t1);
@@ -653,15 +502,180 @@ int readLine(game *g, int s, char player, int num)
     if (g->alloc[1])
       free(g->messages[1]);
   }
+  g->messages[0] = NULL;
+  g->messages[1] = NULL;
+  g->alloc[0] = 0;
+  g->alloc[1] = 1;
+  return success;
+}
+short formatMessage(game *g, char *string, int length, char player, int num2)
+{
+  char *word = (char *)malloc(sizeof(char) * strlen(string) + 1);
+  if(g->residue[num2] != NULL)
+  {
+    free(word);
+    word = combine(g->residue[num2], string);
+    free(g->residue[num2]);
+    g->residue[num2] = NULL;
+  }
+  else
+    strcpy(word, string);
+  short success = -1, format = 1;
+  int i = 0, fieldsC = 0;
+  char *command = (char *)malloc(sizeof(char) * 5);
+  for (i = 0; i < strlen(word); i++)
+  {
+    if(word[i] == '|')
+    {
+      fieldsC++;
+      break;
+    }
+    if(i >= 4)
+    {
+      format = 0;
+      break;
+    }
+    command[i] = word[i];
+  }
+  command[4] = '\0';
+  if (fieldsC < 1)
+  {
+    printf("1\n");
+    cpyToResidue(g, string, length, num2);
+    free(command);
+    return -2;
+  }
+  char *number = (char *)malloc(sizeof(char) * 4);
+  int fields = numFields(command);
+  if(fields == -1)
+    format = 0;
+  int count = i + 1;
+  for (i = i + 1; i < strlen(word); i++)
+  {
+    if(word[i] == '|')
+    {
+      fieldsC++;
+      if(fieldsC == 2)
+        break;
+    }
+    else
+    {
+      if (((i - count) >= 3) || word[i] < 48 || word[i] > 57)
+      {
+        format = 0;
+        break;
+      }
+      number[i - count] = word[i];
+    }
+  }
+  number[3] = '\0';
+  int num = atoi(number);
+  int index = i + num;
+  if (index < strlen(word))
+  {
+    if (word[index] != '|')
+      format = 0;
+  }
+  else
+    format = 0;
+  free(number);
+  if(fieldsC < 2 && fields > 0)
+  {
+    printf("2\n");
+    cpyToResidue(g, string, length, num2);
+    free(command);
+    return -2;
+  }
+  if (num > 255 || num < 0)
+    format = 0;
+  char *text = (char *)malloc(sizeof(char) * num);
+  count = i + 1;
+  for (i = i + 1; i < strlen(word); i++)
+  {
+    if(fieldsC >= fields)
+      break;
+    if (word[i] == '|')
+    {
+      fieldsC++;
+      if(fieldsC >= fields)
+        break;
+    }
+    if((i - count) >= num)
+    {
+      format = 0;
+      break;
+    }
+    text[i - count] = word[i];
+  }
+  if (num != 0)
+  {
+    text[num - 1] = '\0';
+  }
+  if(fieldsC < fields && fields > 0)
+  {
+    cpyToResidue(g, string, length, num2);
+    free(command);
+    free(text);
+    return -2;
+  }
+  if (!format)
+  {
+    g->messages[num2] = "INVL|14|Invalid input|";
+    playMessages(g);
+    return -1;
+  }
+  if (g->started == 1)
+    success = interpretCommand(g, command, text, player);
+  else
+    success = interpretCommand2(g, command, text, num2);
+  success = playMessages(g);
+  if(success == -10)
+    return -10;
+  if (i + 1 < strlen(word))
+  {
+    char *newString = (char*)malloc(sizeof(char) * (strlen(word)-i));
+    int length2 = strlen(word) - i;
+    num = 0;
+    for (i = i + 1; i < strlen(word); i++)
+    {
+      newString[num] = word[i];
+      num++;
+    }
+    newString[length2 - 1] = '\0';
+    success = formatMessage(g, newString, length2, player, num2);
+  }
+  free(word);
+  free(command);
+  free(text);
+  return success;
+}
+int readLine(game *g, int s, char player, int num)
+{
+  g->alloc[0] = 0;
+  g->alloc[1] = 0;
+  g->messages[0] = NULL;
+  g->messages[1] = NULL;
+  char *buf = (char *)malloc(sizeof(char) * BUFSIZE);
+  int bytes;
+  short success2;
+  bytes = read(s, buf, BUFSIZE);
+  buf[bytes] = '\0';
+  if (bytes == 0)
+  {
+    free(buf);
+    return -10;
+  }
+  success2 = formatMessage(g, buf, bytes, player, num);
+  free(buf);
+  if (success2 == -5)
+    return -5;
   return success2;
 }
 void setBoard(game *g)
 {
   g->board = (char *)malloc(sizeof(char) * 10);
   for (int i = 0; i < 9; i++)
-  {
     g->board[i] = '.';
-  }
   g->board[9] = '\0';
 }
 void clearGame(game *g)
