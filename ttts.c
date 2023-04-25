@@ -116,7 +116,7 @@ void chooseSides(game *g)
 {
   srand(time(NULL));
   int r = rand() % 2;
-  if (r == 3)
+  if (r == 1)
   {
     g->sides[0] = 'X';
     g->sides[1] = 'O';
@@ -505,7 +505,7 @@ int playMessages(game *g)
   g->messages[0] = NULL;
   g->messages[1] = NULL;
   g->alloc[0] = 0;
-  g->alloc[1] = 1;
+  g->alloc[1] = 0;
   return success;
 }
 short formatMessage(game *g, char *string, int length, char player, int num2)
@@ -540,7 +540,6 @@ short formatMessage(game *g, char *string, int length, char player, int num2)
   command[4] = '\0';
   if (fieldsC < 1)
   {
-    printf("1\n");
     cpyToResidue(g, string, length, num2);
     free(command);
     return -2;
@@ -581,7 +580,6 @@ short formatMessage(game *g, char *string, int length, char player, int num2)
   free(number);
   if(fieldsC < 2 && fields > 0)
   {
-    printf("2\n");
     cpyToResidue(g, string, length, num2);
     free(command);
     return -2;
@@ -732,10 +730,31 @@ int playGame(int sock, fd_set csock)
       printf("OVER|31|W|Other player lost connection|\n");
       write(sock, "OVER|31|W|Other player lost connection|\n", strlen("OVER|31|W|Other player lost connection|\n"));
     }
+    clearGame(currGame);
     return sock;
   }
   else
     return -1;
+}
+void freeGame(game *g)
+{
+  free(g->board);
+  if(g->residue[0] != NULL)
+    free(g->residue[0]);
+  if(g->residue[1] != NULL)
+    free(g->residue[1]);
+  free(g->usernames[0]);
+  free(g->usernames[1]);
+  free(g->sides);
+  free(g->alloc);
+  free(g->socks);
+  free(g);
+}
+void freeArr()
+{
+  for(int i = 0; i < ucount/2; i++)
+    free(arrgames[i]);
+  free(arrgames);
 }
 void createGame(game *g)
 {
@@ -862,5 +881,6 @@ int main(int argc, char **argv)
   }
   puts("Shutting down");
   close(listener);
+  freeArr();
   return EXIT_SUCCESS;
 }
