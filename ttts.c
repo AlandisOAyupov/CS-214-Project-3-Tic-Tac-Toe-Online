@@ -715,23 +715,25 @@ int playGame(int sock, fd_set csock)
     }
   }
   if(currGame != NULL)
-    connectionCheck = readLine(currGame, sock, currGame->sides[playerNum], playerNum);
-  if(currGame->active == -3 || connectionCheck == -10)
   {
-    int sock;
-    int opp = 0;
-    if (playerNum == 0)
-      opp = 1;
-    else
-      opp = 0;
-    sock = currGame->socks[opp];
-    if(connectionCheck == -10)
+    connectionCheck = readLine(currGame, sock, currGame->sides[playerNum], playerNum);
+    if(currGame->active == -3 || connectionCheck == -10)
     {
-      printf("OVER|31|W|Other player lost connection|\n");
-      write(sock, "OVER|31|W|Other player lost connection|\n", strlen("OVER|31|W|Other player lost connection|\n"));
+      int sock;
+      int opp = 0;
+      if (playerNum == 0)
+        opp = 1;
+      else
+        opp = 0;
+      sock = currGame->socks[opp];
+      if(connectionCheck == -10)
+      {
+        printf("OVER|31|W|Other player lost connection|\n");
+        write(sock, "OVER|31|W|Other player lost connection|\n", strlen("OVER|31|W|Other player lost connection|\n"));
+      }
+      clearGame(currGame);
+      return sock;
     }
-    clearGame(currGame);
-    return sock;
   }
   else
     return -1;
